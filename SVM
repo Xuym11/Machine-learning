@@ -1,0 +1,59 @@
+import torch
+from torchvision import datasets, transforms
+from skimage.feature import local_binary_pattern
+from sklearn import svm
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
+import numpy as np
+
+
+# 数据转换：将图像转换为NumPy数组，并计算LBP特征
+def get_lbp_transform(img):
+    # 假设img是一个Tensor，我们需要先将其转换为NumPy数组
+    img_np = img.squeeze(0).numpy()
+    # 将图像从[0, 1]范围缩放到[0, 255]范围，因为LBP函
+    #     数通常期望0-255的整数
+    img_np = (img_np * 255).astype(np.uint8)
+    # 计算LBP特征
+    lbp = local_binary_pattern(img_np, P=8, R=1, method="uniform")
+    # 展平LBP特征数组
+    return lbp.ravel()
+
+
+# 加载FashionMNIST数据集
+train_dataset = datasets.FashionMNIST(root='./data/', train=True, download=True, transform=transforms.ToTensor())
+test_dataset = datasets.FashionMNIST(root='./data/', train=False, download=True, transform=transforms.ToTensor())
+
+# 提取LBP特征并转换为NumPy数组
+train_features, train_labels = [], []
+for img, label in train_dataset:
+    lbp = get_lbp_transform(img)
+    train_features.append(lbp)
+    train_labels.append(label)
+
+# 将特征和标签转换为NumPy数组
+train_features = np.array(train_features)
+train_labels = np.array(train_labels)
+
+# 将训练集划分为训练子集和验证子集（如果需要）
+X_train, X_val, y_train, y_val = train_test_split(train_features, train_labels, test_size=0.2, random_state=42)
+
+# 使用SVM在训练子集上训练模型
+clf = svm.SVC(kernel='sigmoid', gamma='scale')
+clf.fit(X_train, y_train)
+
+# 在测试集上评估模型
+test_features, test_labels = [], []
+for img, label in test_dataset:
+    lbp = get_lbp_transform(img)
+    test_features.append(lbp)
+
+# 将测试集特征和标签转换为NumPy数组
+test_features = np.array(test_features)
+test_labels = np.array([label.numpy() for label in test_dataset.targets])
+
+# 使用模型进行预测
+predictions = clf.predict(test_features)
+
+# 打印分类报告
+print(classification_report(test_labels, predictions))
